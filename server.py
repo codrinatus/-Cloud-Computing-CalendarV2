@@ -136,6 +136,7 @@ def ajax_delete():
         msg = 'Record deleted successfully'
     return jsonify(msg)
 
+app.static_folder = 'static'
 
 if __name__ == "__main__":
     port = int(os.environ.get('PORT', 8000))
