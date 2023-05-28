@@ -7,7 +7,7 @@ app = Flask(__name__)
 
 app.secret_key = "caircocoders-ednalan"
 
-CORS(app, resources={r"/*": {"origins": "http://localhost:8081"}})
+CORS(app, resources={r"/*": {"origins": "https://calendarproj.azurewebsites.net"}})
 
 conn_str = f"Driver=ODBC Driver 17 for SQL Server;Server=tcp:cloudcalendarserver.database.windows.net,1433;Database=cloudcalendar;Uid=cloudcomp23;"\
             f"Pwd=calendar23!;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
