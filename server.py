@@ -52,6 +52,7 @@ def index():
 
 @app.route('/default', methods=['GET', 'POST'])
 def default():
+    conn = pyodbc.connect(conn_str)
     cur = conn.cursor()
 
 
@@ -75,6 +76,7 @@ def default():
 @app.route("/insert", methods=["POST", "GET"])
 def insert():
 
+    conn = pyodbc.connect(conn_str)
     try:
         cur = conn.cursor()
         print(cur)
@@ -111,6 +113,7 @@ def insert():
 
 @app.route("/update", methods=["POST", "GET"])
 def update():
+    conn = pyodbc.connect(conn_str)
     cur = conn.cursor()
     if request.method == 'POST':
         data = request.get_json()
@@ -131,6 +134,7 @@ def update():
 
 @app.route("/delete", methods=["POST", "GET"])
 def ajax_delete():
+    conn = pyodbc.connect(conn_str)
     cur = conn.cursor()
     if request.method == 'POST':
         data = request.get_json()
