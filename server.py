@@ -7,22 +7,13 @@ app = Flask(__name__)
 
 app.secret_key = "caircocoders-ednalan"
 
-CORS(app, resources={r"/*": {"origins": "https://calendarproj.azurewebsites.net"}})
+CORS(app)
 
 conn_str = f"Driver=ODBC Driver 17 for SQL Server;Server=tcp:cloudcalendarserver.database.windows.net,1433;Database=cloudcalendar;Uid=cloudcomp23;"\
             f"Pwd=calendar23!;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
 
 conn = pyodbc.connect(conn_str)
 
-
-# speech_config = speechsdk.SpeechConfig(subscription="Azure for Students",endpoint="https://eastus.api.cognitive.microsoft.com/sts/v1.0/issuetoken")
-
-# recognizer = speechsdk.Recognizer(speech_config=speech_config)
-@app.route('/speech', methods=['POST'])
-def speech_recognition():
-    # audio = request.data
-    # result = recognizer.recognize_once_async(audio).get()
-    return "Ana are mere"
 
 @app.route('/<path:path>')
 def serve_static(path):
@@ -48,11 +39,74 @@ def serve_static(path):
 @app.route('/')
 def index():
     return send_from_directory('dist', 'index.html')
+    
+def email_trigger(option):
+
+
+    url = "https://sendeventemail.azurewebsites.net/api/HttpTrigger?code=CCrJcP3gRulI_3UudJAQrJ6yNnmu5ImWRIUQFvTY0JEJAzFuLRgTdg=="
+    data = {"name": "App"}
+
+    response = requests.post(url, data=data)
+
+    if response.status_code == 200:
+        print("Alert sent!")
+
+def send_text_for_review(text):
+    url = "https://stopcursing101.cognitiveservices.azure.com/contentmoderator/moderate/v1.0/ProcessText/Screen?autocorrect=false&PII=false&classify=True"
+    headers = {
+        "Content-Type": "text/plain",
+        "Ocp-Apim-Subscription-Key": "90a2cfa53dd54a47b9f5ae73d6bae178"
+    }
+    data = text  # Replace with the actual text you want to process
+
+    response = requests.post(url, headers=headers, data=data)
+
+    if response.status_code == 200:
+        result = response.json()
+
+        if result["Classification"]["ReviewRecommended"] == True:
+            return 1
+        else:
+            return 0
+    else:
+        print("Error:", response.status_code)
+        return -1
+
+
+def create_zoom_meeting(api_key, api_secret, topic, start_time):
+    # API endpoint for creating a meeting
+    url = 'https://api.zoom.us/v2/users/me/meetings'
+
+    # Prepare request headers and data
+    headers = {
+        'Authorization': f'Bearer eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOm51bGwsImlzcyI6IlhlNnU5NjJtUkcyLS1uZUlFV21OeWciLCJleHAiOjE2ODYwNTY3MTQsImlhdCI6MTY4NTQ1MTkxNn0.auNmjDyWRGWXueFteBMQnLQACvbTv_hWp5CRT1gu7Ho',
+        'Content-Type': 'application/json'
+    }
+    data = {
+        'topic': topic,
+        'type': 1,
+        'start_time': start_time
+    }
+
+    # Send POST request to create the meeting
+    response = requests.post(url, headers=headers, data=json.dumps(data))
+
+    if response.status_code == 201:
+        meeting_info = response.json()
+        return meeting_info['join_url']
+    else:
+        print('Failed to create Zoom meeting')
+        return None
+
+# Replace with your own API credentials
+API_KEY = "Xe6u962mRG2--neIEWmNyg"
+API_SECRET = "J6mWZant33cx2jyN0fCfHaO4bvNwzgkG4v0C"
+
+
 
 
 @app.route('/default', methods=['GET', 'POST'])
 def default():
-    conn = pyodbc.connect(conn_str)
     cur = conn.cursor()
 
 
@@ -75,8 +129,7 @@ def default():
 
 @app.route("/insert", methods=["POST", "GET"])
 def insert():
-
-    conn = pyodbc.connect(conn_str)
+    
     try:
         cur = conn.cursor()
         print(cur)
@@ -84,23 +137,49 @@ def insert():
         if request.method == 'POST':
             print("POST")
             data = request.get_json()
-
+            
             title = data['text']
             start = data['start']
             end = data['end']
             id = data['id']
+            checker = send_text_for_review(title)
+            if( checker == 1):
+                print("Text is inappropriate")
+                msg = 'Text is inappropriate'
+                status_code = 403
+                response = jsonify(msg)
+                response.status_code = status_code
+                return response
+            elif(checker == 0):
+                print(data)
+                resource = data['resource']
+                #print(resource)
+                print("Title: " + title + " Start: " + start + " End: " + end)
+                res = cur.execute("INSERT INTO calendar (Id,TopicText,StartTime,EndTime,ResourceText) VALUES (?,?,?,?,?)", [id,title, start, end,resource])
+                
+                # Call the function to create a Zoom meeting
+                meeting_link = create_zoom_meeting(API_KEY, API_SECRET, title, start)
 
-            print(data)
-            resource = data['resource']
-            #print(resource)
-            print("Title: " + title + " Start: " + start + " End: " + end)
-            res = cur.execute("INSERT INTO calendar (Id,TopicText,StartTime,EndTime,ResourceText) VALUES (?,?,?,?,?)", [id,title, start, end,resource])
-
-
-            conn.commit()
-            cur.close()
-            msg = 'Success'
-            status_code = 200
+                if meeting_link:
+                    print('Meeting created successfully.')
+                    print('Meeting link:', meeting_link)
+                                
+                conn.commit()
+                cur.close()
+                email_trigger(0)
+                msg = 'Success! Here is the meeting link: ' +  meeting_link 
+                status_code = 200
+                response = jsonify(msg)
+                response.status_code = status_code
+                
+                return response
+            else:
+                print("Error")
+                msg = 'Error'
+                status_code = 400
+                response = jsonify(msg)
+                response.status_code = status_code
+                return response
     except Exception as e:
             msg = 'failure'
             status_code = 400
@@ -113,7 +192,6 @@ def insert():
 
 @app.route("/update", methods=["POST", "GET"])
 def update():
-    conn = pyodbc.connect(conn_str)
     cur = conn.cursor()
     if request.method == 'POST':
         data = request.get_json()
@@ -123,18 +201,46 @@ def update():
         end = data['end']
         id = data['id']
         resource = data['resource']
-        print(data)
-        cur.execute("UPDATE calendar SET TopicText = ?, StartTime = ?, EndTime = ?,ResourceText=? WHERE Id = ?",
-                    [title, start, end,resource, id])
-        conn.commit()
-        cur.close()
-        msg = 'success'
-    return jsonify(msg)
+        
+        checker = send_text_for_review(title)
+        if( checker == 1):
+            print("Text is inappropriate")
+            msg = 'Text is inappropriate'
+            status_code = 403
+            response = jsonify(msg)
+            response.status_code = status_code
+            return response
+        elif(checker == 0):
+            print(data)
+            email_trigger(1)
+            cur.execute("UPDATE calendar SET TopicText = ?, StartTime = ?, EndTime = ?,ResourceText=? WHERE Id = ?",
+                        [title, start, end,resource, id])
+            conn.commit()
+            cur.close()
+            meeting_link = create_zoom_meeting(API_KEY, API_SECRET, title, start)
+
+            if meeting_link:
+                print('Meeting created successfully.')
+                print('Meeting link:', meeting_link)
+                                
+            email_trigger(0)
+            msg = 'Success! Here is the meeting link: ' +  meeting_link 
+            status_code = 200
+            response = jsonify(msg)
+            response.status_code = status_code
+            
+            return response
+        else:
+            print("Error")
+            msg = 'Error'
+            status_code = 400
+            response = jsonify(msg)
+            response.status_code = status_code
+            return response
 
 
 @app.route("/delete", methods=["POST", "GET"])
 def ajax_delete():
-    conn = pyodbc.connect(conn_str)
     cur = conn.cursor()
     if request.method == 'POST':
         data = request.get_json()
