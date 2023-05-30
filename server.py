@@ -74,6 +74,16 @@ def send_text_for_review(text):
         print("Error:", response.status_code)
         return -1
 
+def sendmeetlink(link):
+    url="https://sendmeetinglink.azurewebsites.net/api/HttpTrigger1?code=XLfhyQynWa7N7LauffZP7rceUOVEiXcuEb7nQZh-QXvBAzFuG7yOrg=="
+    data = {"name": "App", "additional_data": link}
+
+    response_data = requests.post(url,json=data )
+    if response_data:
+        print(response_data)
+        return 1
+    print(response_data.status_code)
+    return 0
 
 def create_zoom_meeting(api_key, api_secret, topic, start_time):
     # API endpoint for creating a meeting
@@ -164,6 +174,7 @@ def insert():
 
                 if meeting_link:
                     print('Meeting created successfully.')
+                    sendmeetlink(meeting_link)
                     print('Meeting link:', meeting_link)
                                 
                 conn.commit()
@@ -223,6 +234,7 @@ def update():
 
             if meeting_link:
                 print('Meeting created successfully.')
+                sendmeetlink(meeting_link)
                 print('Meeting link:', meeting_link)
                                 
             email_trigger(0)
